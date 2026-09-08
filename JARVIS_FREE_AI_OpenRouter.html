@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>JARVIS • Free AI Assistant</title>
+<style>
+:root{--bg:#06101e;--card:#0d1b2b;--line:#173752;--blue:#10a9ef;--text:#eaf5ff;--muted:#8ca5b8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.wrap{max-width:760px;margin:auto;padding:18px 16px 50px}
+h1{text-align:center;letter-spacing:12px;margin:12px 0 4px;font-size:42px}
+.status{text-align:center;color:#70cfff;font-size:22px;margin-bottom:20px}
+.robot{width:160px;height:160px;border:3px solid #20b7ff;border-radius:50%;margin:0 auto 24px;display:grid;place-items:center;font-size:72px;box-shadow:0 0 35px #008bd455}
+.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px;margin:14px 0;box-shadow:0 10px 30px #0004}
+.label{color:#79cfff;font-size:17px;margin-bottom:10px}
+.msg{font-size:19px;line-height:1.55;white-space:pre-wrap}
+input,textarea,select{width:100%;background:#071523;color:var(--text);border:1px solid #234965;border-radius:18px;padding:16px;font-size:17px;outline:none;margin:7px 0}
+textarea{min-height:120px;resize:vertical}
+button{width:100%;border:0;border-radius:18px;background:var(--blue);color:white;font-weight:700;font-size:19px;padding:16px;margin:7px 0;cursor:pointer}
+button.secondary{background:#12324a}button.danger{background:#243747}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.small{font-size:14px;color:var(--muted);line-height:1.5}
+.ok{color:#72e6a7}.err{color:#ff8f8f}.hidden{display:none}
+.toggle{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:15px;margin-top:10px}
+.toggle input{width:auto;margin:0}
+@media(max-width:500px){h1{font-size:34px;letter-spacing:9px}.robot{width:140px;height:140px;font-size:62px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>JARVIS</h1>
+  <div id="status" class="status">Ready</div>
+  <div class="robot">🤖</div>
+
+  <div id="chat"></div>
+
+  <div class="card">
+    <div class="label">🧠 FREE AI BRAIN</div>
+    <input id="apiKey" type="password" placeholder="OpenRouter API key (sk-or-v1-...)" autocomplete="off">
+    <select id="model">
+      <option value="openrouter/free">Free Models Router — $0</option>
+    </select>
+    <button onclick="saveSettings()">💾 Save AI Settings</button>
+    <button class="secondary" onclick="openKeys()">🔑 Get Free API Key</button>
+    <button class="danger" onclick="clearKey()">🗑️ Clear API Key</button>
+    <div id="keyState" class="small"></div>
+    <div class="small">Free router only. It selects from currently available free models. Free accounts have rate limits, so this is for personal/testing use.</div>
+  </div>
+
+  <div class="card">
+    <div class="label">💬 JARVIS AI CHAT</div>
+    <textarea id="question" placeholder="Type your question..."></textarea>
+    <div class="row">
+      <button onclick="askJarvis()">🚀 Ask JARVIS</button>
+      <button onclick="talk()">🎤 Talk to JARVIS</button>
+    </div>
+    <div class="toggle"><input id="autoSpeak" type="checkbox" checked> <span>Speak JARVIS replies</span></div>
+  </div>
+
+  <div class="card">
+    <div class="label">⚡ QUICK ACTIONS</div>
+    <div class="row">
+      <button onclick="quick('time')">🕐 Time</button>
+      <button onclick="quick('date')">📅 Date</button>
+      <button onclick="quick('battery')">🔋 Battery</button>
+      <button onclick="openSite('https://www.youtube.com')">▶️ YouTube</button>
+      <button onclick="openSite('https://www.google.com/maps')">🗺️ Maps</button>
+      <button onclick="openSite('https://web.whatsapp.com')">💬 WhatsApp</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">🧠 PERSONAL MEMORY</div>
+    <input id="memory" placeholder="Example: My favorite color is blue">
+    <button onclick="remember()">💾 Remember This</button>
+    <button class="danger" onclick="clearMemory()">🗑️ Clear Memory</button>
+    <div id="memoryList" class="small"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">🧮 CALCULATOR</div>
+    <input id="calc" placeholder="Example: (25*4)+10/2">
+    <button onclick="calculate()">Calculate</button>
+    <div id="calcResult" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">⚠️ NOTE</div>
+    <div class="small">This is a browser app. For Android-level actions such as calls, SMS, Bluetooth, alarms or system settings, a native Android bridge is required. Never publish your API key in a public repository.</div>
+  </div>
+</div>
+
+<script>
+const KEY='jarvisOpenRouterKey';
+const MEM='jarvisPersonalMemory';
+const HISTORY='jarvisChatHistory';
+const SYSTEM=`You are JARVIS, a smart personal AI assistant. Address the user as Sir naturally, not every sentence. Speak in concise Hindi/Hinglish/English matching the user. Be helpful, direct and honest. Never claim you controlled the phone unless a browser action actually did it. You can help with general knowledge, coding, calculations, planning and explanations.`;
+
+function $(id){return document.getElementById(id)}
+function addMsg(who,text){
+  const c=$('chat'), card=document.createElement('div'); card.className='card';
+  const l=document.createElement('div'); l.className='label'; l.textContent=who;
+  const m=document.createElement('div'); m.className='msg'; m.textContent=text;
+  card.append(l,m); c.appendChild(card); c.scrollIntoView({behavior:'smooth',block:'end'});
+  return card;
+}
+function setStatus(t,cls=''){ $('status').textContent=t; $('status').className='status '+cls; }
+function saveSettings(){
+  const k=$('apiKey').value.trim();
+  if(k) localStorage.setItem(KEY,k);
+  updateKeyState(); setStatus(k?'AI Ready':'API key required',k?'':'err');
+}
+function clearKey(){localStorage.removeItem(KEY);$('apiKey').value='';updateKeyState();setStatus('API key cleared')}
+function updateKeyState(){
+  const has=!!localStorage.getItem(KEY); $('keyState').innerHTML=has?'<span class="ok">✓ API key saved in this browser.</span>':'<span class="err">No API key saved.</span>';
+}
+function openKeys(){window.open('https://openrouter.ai/settings/keys','_blank')}
+function getMemory(){try{return JSON.parse(localStorage.getItem(MEM)||'[]')}catch{return[]}}
+function renderMemory(){const a=getMemory();$('memoryList').textContent=a.length?'Saved: '+a.join(' • '):'No memories saved.'}
+function remember(){
+  const v=$('memory').value.trim(); if(!v)return;
+  const a=getMemory(); if(!a.includes(v))a.push(v); localStorage.setItem(MEM,JSON.stringify(a));$('memory').value='';renderMemory();addMsg('JARVIS','Sir, yaad rakh liya.');speak('Sir, yaad rakh liya.');
+}
+function clearMemory(){localStorage.removeItem(MEM);renderMemory()}
+function localAnswer(q){
+  const s=q.toLowerCase().trim();
+  if(/^(hello|hi|hey|helo|नमस्ते|हेलो)$/.test(s))return'Sir, hello! Main ready hoon. Aap kya karna chahte hain?';
+  if(s.includes('time'))return'Sir, abhi '+new Date().toLocaleTimeString();
+  if(s.includes('date'))return'Sir, aaj '+new Date().toLocaleDateString();
+  return null;
+}
+async function askJarvis(){
+  const q=$('question').value.trim(); if(!q)return;
+  addMsg('YOU',q); $('question').value='';
+  const local=localAnswer(q); if(local){addMsg('JARVIS',local);if($('autoSpeak').checked)speak(local);return}
+  const key=localStorage.getItem(KEY);
+  if(!key){const t='Sir, AI use karne ke liye OpenRouter ki FREE API key add karni hogi. “Get Free API Key” button se key banaiye.';addMsg('JARVIS',t);speak(t);return}
+  setStatus('Thinking…');
+  try{
+    const memories=getMemory();
+    const context=memories.length?'\\nUser memories: '+memories.join(' | '):'';
+    const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':location.href,'X-Title':'JARVIS Free AI'},
+      body:JSON.stringify({model:'openrouter/free',messages:[
+        {role:'system',content:SYSTEM+context},
+        {role:'user',content:q}
+      ],temperature:.7,max_tokens:700})
+    });
+    const data=await r.json();
+    if(!r.ok)throw new Error(data?.error?.message||('HTTP '+r.status));
+    const ans=data?.choices?.[0]?.message?.content||'Sir, mujhe response nahi mila.';
+    addMsg('JARVIS',ans); if($('autoSpeak').checked)speak(ans); setStatus('Ready');
+  }catch(e){
+    const msg='Sir, AI connection error: '+e.message;
+    addMsg('JARVIS',msg);setStatus('AI Error','err');
+  }
+}
+function speak(t){if(!('speechSynthesis'in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang=/[\u0900-\u097F]/.test(t)?'hi-IN':'en-IN';speechSynthesis.speak(u)}
+let recognition=null;
+function talk(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){const t='Sir, is Chrome version mein speech recognition available nahi hai.';addMsg('JARVIS',t);return}
+  try{
+    recognition=new SR(); recognition.lang='hi-IN'; recognition.interimResults=false; recognition.maxAlternatives=1;
+    recognition.onstart=()=>setStatus('Listening…');
+    recognition.onerror=e=>{setStatus('Mic Error','err');addMsg('JARVIS','Sir, microphone error: '+e.error+'. Chrome site permissions mein Microphone ko Allow karein. Agar file content:// se khuli hai to GitHub Pages HTTPS URL use karein.');};
+    recognition.onresult=e=>{$('question').value=e.results[0][0].transcript;askJarvis()};
+    recognition.onend=()=>{if($('status').textContent==='Listening…')setStatus('Ready')};
+    recognition.start();
+  }catch(e){setStatus('Mic Error','err');addMsg('JARVIS','Sir, microphone start nahi ho saka. Chrome mein site ke Microphone permission ko Allow karein.')}
+}
+function quick(type){
+  if(type==='time'){const t='Sir, abhi '+new Date().toLocaleTimeString();addMsg('JARVIS',t);speak(t)}
+  if(type==='date'){const t='Sir, aaj '+new Date().toLocaleDateString();addMsg('JARVIS',t);speak(t)}
+  if(type==='battery'){
+    if(navigator.getBattery)navigator.getBattery().then(b=>{const t='Sir, battery '+Math.round(b.level*100)+'% hai.';addMsg('JARVIS',t);speak(t)});
+    else addMsg('JARVIS','Sir, battery information is browser mein available nahi hai.');
+  }
+}
+function openSite(u){window.open(u,'_blank')}
+function calculate(){
+  const x=$('calc').value.trim(); if(!x)return;
+  if(!/^[0-9+\\-*/().%\\s]+$/.test(x)){ $('calcResult').textContent='Only basic arithmetic allowed.';return}
+  try{$('calcResult').textContent='= '+Function('"use strict";return ('+x+')')()}catch{$('calcResult').textContent='Invalid calculation.'}
+}
+(function init(){
+  const k=localStorage.getItem(KEY); if(k)$('apiKey').value=k;
+  updateKeyState();renderMemory();
+  addMsg('JARVIS','Sir, main ready hoon. Free AI ke liye OpenRouter API key save karein.');
+})();
+</script>
+</body>
+</html>
